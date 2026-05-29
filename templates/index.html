@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ordenes de Mantenimiento</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f2f5; color: #333; }
+        header { background: #1a237e; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        header h1 { font-size: 20px; }
+        .botones-header { display: flex; gap: 10px; }
+        button { cursor: pointer; border: none; border-radius: 5px; padding: 8px 16px; font-size: 14px; }
+        .btn-primary { background: #1565c0; color: white; }
+        .btn-success { background: #2e7d32; color: white; }
+        .btn-danger { background: #c62828; color: white; }
+        .btn-warning { background: #f57f17; color: white; }
+        .btn-info { background: #00838f; color: white; }
+        button:hover { opacity: 0.85; }
+        .container { padding: 20px 30px; }
+        .barra-busqueda { display: flex; gap: 10px; margin-bottom: 20px; }
+        .barra-busqueda input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        th { background: #1a237e; color: white; padding: 12px 15px; text-align: left; font-size: 13px; }
+        td { padding: 11px 15px; border-bottom: 1px solid #eee; font-size: 13px; }
+        tr:hover { background: #e8eaf6; }
+        .acciones { display: flex; gap: 6px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.activo { display: flex; }
+        .modal { background: white; border-radius: 10px; padding: 30px; width: 700px; max-height: 85vh; overflow-y: auto; }
+        .modal h2 { margin-bottom: 20px; color: #1a237e; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .form-grupo { display: flex; flex-direction: column; gap: 5px; }
+        .form-grupo.completo { grid-column: span 2; }
+        .form-grupo label { font-size: 13px; font-weight: bold; color: #555; }
+        .form-grupo input, .form-grupo select, .form-grupo textarea { padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 13px; }
+        .form-grupo textarea { resize: vertical; min-height: 70px; }
+        .modal-botones { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .btn-cancelar { background: #888; color: white; }
+        .toast { position: fixed; bottom: 30px; right: 30px; background: #2e7d32; color: white; padding: 14px 24px; border-radius: 8px; font-size: 14px; display: none; z-index: 9999; }
+        .seccion-titulo { font-size: 13px; font-weight: bold; color: #1a237e; grid-column: span 2; border-bottom: 2px solid #1a237e; padding-bottom: 4px; margin-top: 10px; }
+        .opciones-tipo { display: flex; gap: 20px; margin-bottom: 10px; }
+        .opcion-card { flex: 1; border: 2px solid #ccc; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .opcion-card:hover { border-color: #1a237e; background: #e8eaf6; }
+        .opcion-card h3 { color: #1a237e; margin-bottom: 8px; }
+        .opcion-card p { font-size: 12px; color: #666; }
+        .selector-plan { display: none; margin-bottom: 20px; }
+        .selector-plan.activo { display: block; }
+        .selector-plan .form-grid { margin-bottom: 15px; }
+        /* Editor Plan Anual */
+        .modal-plan-editor { width: 95vw; max-width: 1200px; }
+        .plan-tabla-wrap { overflow-x: auto; margin-bottom: 15px; }
+        .plan-tabla { border-collapse: collapse; min-width: 1000px; font-size: 12px; }
+        .plan-tabla th { background: #1a237e; color: white; padding: 7px 8px; text-align: center; white-space: nowrap; }
+        .plan-tabla td { border: 1px solid #ddd; padding: 3px; vertical-align: top; }
+        .plan-tabla td input, .plan-tabla td select { width: 100%; border: none; padding: 4px 5px; font-size: 12px; background: transparent; box-sizing: border-box; }
+        .plan-tabla td input:focus, .plan-tabla td select:focus { background: #e8eaf6; outline: none; border-radius: 3px; }
+        .plan-tabla tr:hover td { background: #f5f5f5; }
+        .plan-tabla tr:hover td input, .plan-tabla tr:hover td select { background: transparent; }
+        .plan-tabla tr:hover td input:focus, .plan-tabla tr:hover td select:focus { background: #e8eaf6; }
+        .btn-fila-accion { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 5px; border-radius: 3px; }
+        .btn-fila-accion:hover { background: #eee; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Sistema de Ordenes de Mantenimiento</h1>
+    <div class="botones-header">
+        <button class="btn-success" onclick="abrirModalTipo()">+ Nueva Orden</button>
+        <button class="btn-info" onclick="exportarExcel()">Exportar Excel</button>
+        <button class="btn-warning" onclick="abrirModalPlanEditor()">📋 Editar Plan Anual</button>
+    </div>
+</header>
+
+<div class="container">
+    <div class="barra-busqueda">
+        <input type="text" id="busqueda" placeholder="Buscar por codigo o nombre..." oninput="cargarOrdenes()">
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Codigo</th>
+                <th>Nombre</th>
+                <th>Prioridad</th>
+                <th>Fecha Creacion</th>
+                <th>Equipo</th>
+                <th>Responsable</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="tabla-body"></tbody>
+    </table>
+</div>
+
+<!-- Modal seleccion de tipo -->
+<div class="modal-overlay" id="modal-tipo">
+    <div class="modal" style="width: 500px;">
+        <h2>Nueva Orden</h2>
+        <p style="margin-bottom: 20px; color: #555;">¿Qué tipo de orden querés crear?</p>
+        <div class="opciones-tipo">
+            <div class="opcion-card" onclick="elegirTipo('plan')">
+                <h3>📋 Desde el Plan Anual</h3>
+                <p>Usá una tarea del plan de mantenimiento como base. Los campos principales se precargan automáticamente.</p>
+            </div>
+            <div class="opcion-card" onclick="elegirTipo('nueva')">
+                <h3>✏️ Nueva en Blanco</h3>
+                <p>Creá una orden desde cero completando todos los campos manualmente.</p>
+            </div>
+        </div>
+        <div class="modal-botones">
+            <button class="btn-cancelar" onclick="cerrarModalTipo()">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal selector plan anual -->
+<div class="modal-overlay" id="modal-plan">
+    <div class="modal" style="width: 500px;">
+        <h2>Orden desde el Plan Anual</h2>
+        <div class="form-grid" style="margin-bottom: 20px;">
+            <div class="form-grupo">
+                <label>Equipo</label>
+                <select id="plan-equipo" onchange="cargarFrecuencias()">
+                    <option value="">Seleccioná un equipo...</option>
+                </select>
+            </div>
+            <div class="form-grupo">
+                <label>Frecuencia</label>
+                <select id="plan-frecuencia">
+                    <option value="">Seleccioná frecuencia...</option>
+                    <option value="Semanal">Semanal</option>
+                    <option value="Mensual">Mensual</option>
+                    <option value="Trimestral">Trimestral</option>
+                    <option value="Semestral">Semestral</option>
+                    <option value="Anual">Anual</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-botones">
+            <button class="btn-cancelar" onclick="cerrarModalPlan()">Cancelar</button>
+            <button class="btn-primary" onclick="abrirFormularioPlan()">Continuar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal crear/editar -->
+<div class="modal-overlay" id="modal-orden">
+    <div class="modal">
+        <h2 id="modal-titulo">Nueva Orden</h2>
+        <div class="form-grid">
+            <div class="seccion-titulo">Identificacion</div>
+            <div class="form-grupo">
+                <label>Nombre de la Orden</label>
+                <input type="text" id="nombre_orden">
+            </div>
+            <div class="form-grupo">
+                <label>Prioridad</label>
+                <select id="prioridad">
+                    <option value="Alta">Alta</option>
+                    <option value="Media">Media</option>
+                    <option value="Baja">Baja</option>
+                </select>
+            </div>
+
+            <div class="seccion-titulo">Solicitud</div>
+            <div class="form-grupo">
+                <label>Requerido por</label>
+                <input type="text" id="requerido_por">
+            </div>
+            <div class="form-grupo">
+                <label>Fecha de Aprobacion</label>
+                <input type="date" id="fecha_aprobacion">
+            </div>
+
+            <div class="seccion-titulo">Equipo</div>
+            <div class="form-grupo">
+                <label>Equipo</label>
+                <input type="text" id="equipo">
+            </div>
+            <div class="form-grupo">
+                <label>Codigo del Equipo</label>
+                <input type="text" id="codigo_equipo">
+            </div>
+            <div class="form-grupo">
+                <label>Tipo de Mantenimiento</label>
+                <select id="tipo_mantenimiento">
+                    <option value="Preventivo">Preventivo</option>
+                    <option value="Correctivo">Correctivo</option>
+                    <option value="Predictivo">Predictivo</option>
+                    <option value="Detectivo">Detectivo</option>
+                    <option value="Correctivo Prog.">Correctivo Prog.</option>
+                </select>
+            </div>
+
+            <div class="seccion-titulo">Descripcion</div>
+            <div class="form-grupo completo">
+                <label>Descripcion del Problema</label>
+                <textarea id="descripcion"></textarea>
+            </div>
+
+            <div class="seccion-titulo">Fechas</div>
+            <div class="form-grupo">
+                <label>Fecha de Inicio</label>
+                <input type="date" id="fecha_inicio">
+            </div>
+            <div class="form-grupo">
+                <label>Fecha de Finalizacion</label>
+                <input type="date" id="fecha_finalizacion">
+            </div>
+
+            <div class="seccion-titulo">Personal</div>
+            <div class="form-grupo">
+                <label>Cuadrilla</label>
+                <input type="text" id="cuadrilla">
+            </div>
+            <div class="form-grupo">
+                <label>Personal Asignado</label>
+                <input type="text" id="personal_asignado">
+            </div>
+            <div class="form-grupo">
+                <label>Supervisor</label>
+                <input type="text" id="supervisor">
+            </div>
+
+            <div class="seccion-titulo">Materiales</div>
+            <div class="form-grupo">
+                <label>Insumo</label>
+                <input type="text" id="insumo">
+            </div>
+            <div class="form-grupo">
+                <label>Codigo del Insumo</label>
+                <input type="text" id="codigo_insumo">
+            </div>
+            <div class="form-grupo completo">
+                <label>EPP utilizado</label>
+                <input type="text" id="epp">
+            </div>
+
+            <div class="seccion-titulo">Seguridad y Cierre</div>
+            <div class="form-grupo">
+                <label>AST</label>
+                <select id="ast">
+                    <option value="SI">SI</option>
+                    <option value="NO">NO</option>
+                </select>
+            </div>
+            <div class="form-grupo">
+                <label>Responsable</label>
+                <input type="text" id="responsable">
+            </div>
+            <div class="form-grupo">
+                <label>Autorizacion</label>
+                <input type="text" id="autorizacion">
+            </div>
+            <div class="form-grupo completo">
+                <label>Comentarios</label>
+                <textarea id="comentarios"></textarea>
+            </div>
+        </div>
+        <div class="modal-botones">
+            <button class="btn-cancelar" onclick="cerrarModal()">Cancelar</button>
+            <button class="btn-primary" onclick="guardarOrden()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editor Plan Anual -->
+<div class="modal-overlay" id="modal-plan-editor">
+    <div class="modal modal-plan-editor">
+        <h2>Plan Anual de Mantenimiento</h2>
+        <div class="plan-tabla-wrap">
+            <table class="plan-tabla" id="plan-tabla">
+                <thead>
+                    <tr>
+                        <th style="min-width:180px;">Equipo</th>
+                        <th style="min-width:220px;">Tarea Semanal</th>
+                        <th style="min-width:220px;">Tarea Mensual</th>
+                        <th style="min-width:130px;">Tipo</th>
+                        <th style="min-width:220px;">Tarea Trimestral</th>
+                        <th style="min-width:130px;">Tipo</th>
+                        <th style="min-width:220px;">Tarea Semestral</th>
+                        <th style="min-width:130px;">Tipo</th>
+                        <th style="min-width:220px;">Tarea Anual</th>
+                        <th style="min-width:130px;">Tipo</th>
+                        <th style="min-width:60px;">Accion</th>
+                    </tr>
+                </thead>
+                <tbody id="plan-editor-body"></tbody>
+            </table>
+        </div>
+        <div style="margin-bottom:15px;">
+            <button class="btn-success" onclick="agregarFilaPlan()">+ Agregar Equipo</button>
+        </div>
+        <div class="modal-botones">
+            <button class="btn-cancelar" onclick="cerrarModalPlanEditor()">Cancelar</button>
+            <button class="btn-primary" onclick="guardarPlan()">💾 Guardar Cambios</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let modoEdicion = false;
+let codigoEditando = null;
+
+async function cargarOrdenes() {
+    const busqueda = document.getElementById("busqueda").value;
+    const res = await fetch(`/api/ordenes?busqueda=${busqueda}`);
+    const ordenes = await res.json();
+    const tbody = document.getElementById("tabla-body");
+    tbody.innerHTML = "";
+    ordenes.forEach(o => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${o.codigo_orden}</td>
+            <td>${o.nombre_orden}</td>
+            <td>${o.prioridad}</td>
+            <td>${o.fecha_creacion}</td>
+            <td>${o.equipo}</td>
+            <td>${o.responsable}</td>
+            <td class="acciones">
+                <button class="btn-primary" onclick="editarOrden('${o.codigo_orden}')">Editar</button>
+                <button class="btn-info" onclick="exportarPDF('${o.codigo_orden}')">PDF</button>
+                <button class="btn-danger" onclick="eliminarOrden('${o.codigo_orden}')">Eliminar</button>
+            </td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+function abrirModalTipo() {
+    document.getElementById("modal-tipo").classList.add("activo");
+}
+
+function cerrarModalTipo() {
+    document.getElementById("modal-tipo").classList.remove("activo");
+}
+
+async function elegirTipo(tipo) {
+    cerrarModalTipo();
+    if (tipo === "nueva") {
+        modoEdicion = false;
+        codigoEditando = null;
+        document.getElementById("modal-titulo").textContent = "Nueva Orden";
+        limpiarFormulario();
+        document.getElementById("modal-orden").classList.add("activo");
+    } else {
+        const res = await fetch("/api/plan/equipos");
+        const equipos = await res.json();
+        const select = document.getElementById("plan-equipo");
+        select.innerHTML = '<option value="">Seleccioná un equipo...</option>';
+        equipos.forEach(e => {
+            const opt = document.createElement("option");
+            opt.value = e;
+            opt.textContent = e;
+            select.appendChild(opt);
+        });
+        document.getElementById("modal-plan").classList.add("activo");
+    }
+}
+
+function cerrarModalPlan() {
+    document.getElementById("modal-plan").classList.remove("activo");
+}
+
+async function abrirFormularioPlan() {
+    const equipo = document.getElementById("plan-equipo").value;
+    const frecuencia = document.getElementById("plan-frecuencia").value;
+    if (!equipo || !frecuencia) {
+        alert("Seleccioná un equipo y una frecuencia");
+        return;
+    }
+    const res = await fetch(`/api/plan/tarea?equipo=${encodeURIComponent(equipo)}&frecuencia=${frecuencia}`);
+    const datos = await res.json();
+    cerrarModalPlan();
+    limpiarFormulario();
+    document.getElementById("equipo").value = equipo;
+    document.getElementById("descripcion").value = datos.descripcion;
+    const tipoSelect = document.getElementById("tipo_mantenimiento");
+    for (let i = 0; i < tipoSelect.options.length; i++) {
+        if (tipoSelect.options[i].value.toLowerCase() === datos.tipo.toLowerCase()) {
+            tipoSelect.selectedIndex = i;
+            break;
+        }
+    }
+    document.getElementById("modal-titulo").textContent = "Nueva Orden desde Plan Anual";
+    modoEdicion = false;
+    codigoEditando = null;
+    document.getElementById("modal-orden").classList.add("activo");
+}
+
+function cerrarModal() {
+    document.getElementById("modal-orden").classList.remove("activo");
+}
+
+function limpiarFormulario() {
+    ["nombre_orden","prioridad","requerido_por","fecha_aprobacion","equipo","codigo_equipo",
+     "tipo_mantenimiento","descripcion","fecha_inicio","fecha_finalizacion","cuadrilla",
+     "personal_asignado","supervisor","insumo","codigo_insumo","epp","ast","responsable",
+     "autorizacion","comentarios"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+    });
+}
+
+async function editarOrden(codigo) {
+    const res = await fetch("/api/ordenes");
+    const ordenes = await res.json();
+    const orden = ordenes.find(o => o.codigo_orden === codigo);
+    if (!orden) return;
+    modoEdicion = true;
+    codigoEditando = codigo;
+    document.getElementById("modal-titulo").textContent = `Editando ${codigo}`;
+    Object.keys(orden).forEach(campo => {
+        const el = document.getElementById(campo);
+        if (el) el.value = orden[campo];
+    });
+    document.getElementById("modal-orden").classList.add("activo");
+}
+
+async function guardarOrden() {
+    const campos = ["nombre_orden","prioridad","requerido_por","fecha_aprobacion","equipo",
+        "codigo_equipo","tipo_mantenimiento","descripcion","fecha_inicio","fecha_finalizacion",
+        "cuadrilla","personal_asignado","supervisor","insumo","codigo_insumo","epp","ast",
+        "responsable","autorizacion","comentarios"];
+    const datos = {};
+    campos.forEach(c => datos[c] = document.getElementById(c).value);
+    if (modoEdicion) {
+        await fetch(`/api/ordenes/${codigoEditando}`, { method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(datos) });
+        mostrarToast("Orden actualizada correctamente");
+    } else {
+        await fetch("/api/ordenes", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(datos) });
+        mostrarToast("Orden creada correctamente");
+    }
+    cerrarModal();
+    cargarOrdenes();
+}
+
+async function eliminarOrden(codigo) {
+    if (!confirm(`Eliminar la orden ${codigo}?`)) return;
+    await fetch(`/api/ordenes/${codigo}`, { method: "DELETE" });
+    mostrarToast("Orden eliminada");
+    cargarOrdenes();
+}
+
+function exportarPDF(codigo) {
+    window.open(`/api/exportar/pdf/${codigo}`, "_blank");
+}
+
+function exportarExcel() {
+    window.location.href = "/api/exportar/excel";
+}
+
+function mostrarToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.style.display = "block";
+    setTimeout(() => t.style.display = "none", 3000);
+}
+
+// ---- Editor Plan Anual ----
+let planEncabezado1 = [];
+let planEncabezado2 = [];
+
+const TIPOS_MANT = ["Preventivo","Correctivo","Predictivo","Detectivo","Correctivo Prog.","-",""];
+
+function tipoSelect(valor) {
+    const opts = TIPOS_MANT.map(t => `<option value="${t}" ${t === valor ? "selected" : ""}>${t || "(ninguno)"}</option>`).join("");
+    return `<select>${opts}</select>`;
+}
+
+async function abrirModalPlanEditor() {
+    const res = await fetch("/api/plan");
+    const datos = await res.json();
+    planEncabezado1 = datos.encabezado1;
+    planEncabezado2 = datos.encabezado2;
+    const tbody = document.getElementById("plan-editor-body");
+    tbody.innerHTML = "";
+    datos.filas.forEach((fila, idx) => renderFilaPlan(fila, idx));
+    document.getElementById("modal-plan-editor").classList.add("activo");
+}
+
+function renderFilaPlan(fila, idx) {
+    const tbody = document.getElementById("plan-editor-body");
+    const tr = document.createElement("tr");
+    tr.dataset.idx = idx;
+    while (fila.length < 10) fila.push("");
+    tr.innerHTML = `
+        <td><input type="text" value="${esc(fila[0])}" data-col="0"></td>
+        <td><input type="text" value="${esc(fila[1])}" data-col="1"></td>
+        <td><input type="text" value="${esc(fila[2])}" data-col="2"></td>
+        <td>${tipoSelect(fila[3])}</td>
+        <td><input type="text" value="${esc(fila[4])}" data-col="4"></td>
+        <td>${tipoSelect(fila[5])}</td>
+        <td><input type="text" value="${esc(fila[6])}" data-col="6"></td>
+        <td>${tipoSelect(fila[7])}</td>
+        <td><input type="text" value="${esc(fila[8])}" data-col="8"></td>
+        <td>${tipoSelect(fila[9])}</td>
+        <td><button class="btn-fila-accion btn-danger" title="Eliminar fila" onclick="eliminarFilaPlan(this)">🗑️</button></td>
+    `;
+    tbody.appendChild(tr);
+}
+
+function esc(val) {
+    return (val || "").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+function agregarFilaPlan() {
+    const tbody = document.getElementById("plan-editor-body");
+    const idx = tbody.rows.length;
+    renderFilaPlan(["","","","-","","-","","-","","-"], idx);
+}
+
+function eliminarFilaPlan(btn) {
+    const tr = btn.closest("tr");
+    if (!confirm("¿Eliminar este equipo del plan?")) return;
+    tr.remove();
+}
+
+function leerFilasPlan() {
+    const tbody = document.getElementById("plan-editor-body");
+    const filas = [];
+    for (const tr of tbody.rows) {
+        const fila = [];
+        const inputs = tr.querySelectorAll("input[data-col]");
+        const selects = tr.querySelectorAll("select");
+        const colMap = {};
+        inputs.forEach(inp => colMap[parseInt(inp.dataset.col)] = inp.value);
+        const tipoVals = [...selects].map(s => s.value);
+        fila[0] = colMap[0] || "";
+        fila[1] = colMap[1] || "";
+        fila[2] = colMap[2] || "";
+        fila[3] = tipoVals[0] || "";
+        fila[4] = colMap[4] || "";
+        fila[5] = tipoVals[1] || "";
+        fila[6] = colMap[6] || "";
+        fila[7] = tipoVals[2] || "";
+        fila[8] = colMap[8] || "";
+        fila[9] = tipoVals[3] || "";
+        filas.push(fila);
+    }
+    return filas;
+}
+
+async function guardarPlan() {
+    const filas = leerFilasPlan();
+    const res = await fetch("/api/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ encabezado1: planEncabezado1, encabezado2: planEncabezado2, filas })
+    });
+    const data = await res.json();
+    mostrarToast(data.mensaje || "Plan guardado");
+    cerrarModalPlanEditor();
+}
+
+function cerrarModalPlanEditor() {
+    document.getElementById("modal-plan-editor").classList.remove("activo");
+}
+
+cargarOrdenes();
+</script>
+</body>
+</html>
